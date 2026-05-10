@@ -1,0 +1,170 @@
+# =========================
+# 1. IMPORT LIBRARIES
+# =========================
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.preprocessing import MinMaxScaler
+
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, SimpleRNN
+
+
+# =========================
+# 2. LOAD DATASET
+# =========================
+
+df = pd.read_csv(
+    "Google_Stock_Price.csv",
+    thousands=','
+)
+
+print("Dataset Loaded Successfully")
+print(df.head())
+
+
+# =========================
+# 3. PREPARE DATA
+# =========================
+
+# Convert Open column into numeric values
+data = pd.to_numeric(
+    df['Open'],
+    errors='coerce'
+).dropna().values.reshape(-1, 1)
+
+
+# =========================
+# 4. SCALE DATA
+# =========================
+
+scaler = MinMaxScaler(feature_range=(0, 1))
+
+data_scaled = scaler.fit_transform(data)
+
+
+# =========================
+# 5. TRAIN TEST SPLIT
+# =========================
+
+train_size = int(len(data_scaled) * 0.8)
+
+train_data = data_scaled[:train_size]
+test_data = data_scaled[train_size:]
+
+
+# =========================
+# 6. CREATE DATASET
+# =========================
+
+def create_dataset(dataset):
+
+    X = []
+    y = []
+
+    for i in range(60, len(dataset)):
+
+        X.append(dataset[i-60:i, 0])
+        y.append(dataset[i, 0])
+
+    return np.array(X), np.array(y)
+
+
+X_train, y_train = create_dataset(train_data)
+X_test, y_test = create_dataset(test_data)
+
+
+# =========================
+# 7. RESHAPE DATA
+# =========================
+
+X_train = np.reshape(
+    X_train,
+    (X_train.shape[0], X_train.shape[1], 1)
+)
+
+X_test = np.reshape(
+    X_test,
+    (X_test.shape[0], X_test.shape[1], 1)
+)
+
+
+# =========================
+# 8. BUILD RNN MODEL
+# =========================
+
+model = Sequential()
+
+# First RNN Layer
+model.add(
+    SimpleRNN(
+        50,
+        return_sequences=True,
+        input_shape=(60, 1)
+    )
+)
+
+# Second RNN Layer
+model.add(SimpleRNN(50))
+
+# Output Layer
+model.add(Dense(1))
+
+
+# =========================
+# 9. COMPILE MODEL
+# =========================
+
+model.compile(
+    optimizer='adam',
+    loss='mean_squared_error'
+)
+
+model.summary()
+
+
+# =========================
+# 10. TRAIN MODEL
+# =========================
+
+history = model.fit(
+    X_train,
+    y_train,
+    epochs=20,
+    batch_size=32
+)
+
+
+# =========================
+# 11. MAKE PREDICTIONS
+# =========================
+
+predicted = model.predict(X_test)
+
+# Convert back to original values
+predicted = scaler.inverse_transform(predicted)
+
+real = scaler.inverse_transform(
+    y_test.reshape(-1, 1)
+)
+
+
+# =========================
+# 12. VISUALIZE RESULTS
+# =========================
+
+plt.figure(figsize=(12, 6))
+
+plt.plot(real, label='Real Stock Price')
+plt.plot(predicted, label='Predicted Stock Price')
+
+plt.title("Google Stock Price Prediction Using RNN")
+
+plt.xlabel("Time")
+plt.ylabel("Stock Price")
+
+plt.legend()
+
+plt.show()
